@@ -8,7 +8,6 @@ use App\Models\Antrian;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Redirect;
 
 class PasienAntrian extends Component
 {
@@ -51,10 +50,21 @@ class PasienAntrian extends Component
 
     public function ambilAntrian()
     {
+        // Reset previous errors
+        $this->resetErrorBag();
+        
         try {
-            // Validasi manual dengan error handling yang lebih baik
+            // Validasi: Pastikan loket sudah dipilih
             if (!$this->selected_loket_id) {
                 $this->addError('selected_loket_id', 'Silakan pilih loket terlebih dahulu.');
+                session()->flash('error', 'Silakan pilih loket terlebih dahulu sebelum mengambil nomor antrian.');
+                return;
+            }
+            
+            // Validasi: Pastikan lokets tidak kosong
+            if (empty($this->lokets) || (is_object($this->lokets) && $this->lokets->isEmpty())) {
+                $this->addError('selected_loket_id', 'Daftar loket tidak tersedia. Silakan refresh halaman.');
+                session()->flash('error', 'Daftar loket tidak tersedia. Silakan refresh halaman.');
                 return;
             }
 
@@ -68,13 +78,19 @@ class PasienAntrian extends Component
                 return;
             }
 
-            // Cek apakah loket exists
+            // Cek apakah loket exists dengan fresh query
             $loket = Loket::find($this->selected_loket_id);
             if (!$loket) {
                 $this->addError('selected_loket_id', 'Loket yang dipilih tidak ditemukan.');
                 session()->flash('error', 'Loket yang dipilih tidak ditemukan. Silakan pilih loket lain.');
                 return;
             }
+            
+            Log::info('Memulai proses pengambilan nomor antrian', [
+                'loket_id' => $loket->id,
+                'loket_nama' => $loket->nama_loket,
+                'loket_code' => $loket->code
+            ]);
 
             // Generate nomor antrian otomatis
             $today = Carbon::today();
@@ -112,14 +128,16 @@ class PasienAntrian extends Component
                     }
 
                     // Create antrian dengan relationship ke loket
-                    $antrian = Antrian::create([
-                        'loket_id' => $loket->id,
-                        'nomor_antrian' => $nomorAntrian,
-                        'status' => 'menunggu',
-                    ]);
+                    $antrian = new Antrian();
+                    $antrian->loket_id = $loket->id;
+                    $antrian->nomor_antrian = $nomorAntrian;
+                    $antrian->status = 'menunggu';
+                    $antrian->save();
 
                     // Commit transaction - PENTING: Data harus commit dulu sebelum redirect
                     DB::commit();
+                    
+                    Log::info('Transaction committed, antrian ID: ' . $antrian->id);
 
                     // Verifikasi data tersimpan dengan query langsung ke database
                     $savedAntrian = DB::table('antrians')
@@ -130,87 +148,67 @@ class PasienAntrian extends Component
                         throw new \Exception('Data antrian tidak tersimpan ke database.');
                     }
 
-                    // Verifikasi relationship dengan loket
-                    $verifyLoket = DB::table('antrians')
-                        ->where('id', $antrian->id)
-                        ->where('loket_id', $loket->id)
-                        ->first();
-                    
-                    if (!$verifyLoket) {
-                        throw new \Exception('Relationship antara antrian dan loket tidak valid.');
-                    }
-
                     // Reload model dengan relationship menggunakan Eloquent
                     $antrianModel = Antrian::with('loket')->find($antrian->id);
                     if (!$antrianModel || !$antrianModel->loket) {
                         throw new \Exception('Gagal memuat relationship dengan loket.');
                     }
                     
-                    $savedAntrian = $antrianModel;
-
-                    // Set properties untuk UI
+                    // Set properties
                     $this->nomor_antrian = $nomorAntrian;
-                    $this->antrian_terakhir = $savedAntrian;
-                    $this->show_success = true;
                     $this->selected_loket_id = null;
 
                     // Log success
-                    Log::info('Antrian berhasil dibuat', [
-                        'antrian_id' => $savedAntrian->id,
-                        'nomor_antrian' => $nomorAntrian,
-                        'loket_id' => $loket->id,
-                        'loket_nama' => $loket->nama_loket,
-                    ]);
-
-                    // Dispatch event untuk refresh display dan petugas dashboard
-                    $this->dispatch('refreshDisplay');
-                    $this->dispatch('antrian-created', [
-                        'antrian_id' => $savedAntrian->id,
-                        'loket_id' => $loket->id
-                    ]);
-
-                    // Verifikasi final: Pastikan data benar-benar ada di database sebelum redirect
-                    // Query langsung ke database untuk memastikan data tersimpan
-                    $finalCheck = DB::table('antrians')
-                        ->where('id', $savedAntrian->id)
-                        ->where('loket_id', $loket->id)
-                        ->where('nomor_antrian', $nomorAntrian)
-                        ->where('status', 'menunggu')
-                        ->exists();
-                    
-                    if (!$finalCheck) {
-                        throw new \Exception('Verifikasi akhir gagal. Data mungkin tidak tersimpan dengan benar.');
-                    }
-
-                    // Verifikasi foreign key constraint - pastikan loket_id valid di tabel lokets
-                    $loketExists = DB::table('lokets')
-                        ->where('id', $loket->id)
-                        ->exists();
-                    
-                    if (!$loketExists) {
-                        throw new \Exception('Loket dengan ID ' . $loket->id . ' tidak ditemukan di database.');
-                    }
-
-                    // Log informasi lengkap untuk debugging
                     Log::info('Antrian berhasil dibuat dan tersimpan di database', [
-                        'antrian_id' => $savedAntrian->id,
+                        'antrian_id' => $antrianModel->id,
                         'nomor_antrian' => $nomorAntrian,
                         'loket_id' => $loket->id,
                         'loket_nama' => $loket->nama_loket,
                         'status' => 'menunggu',
-                        'created_at' => $savedAntrian->created_at,
-                        'database_verified' => true,
+                        'created_at' => $antrianModel->created_at,
                     ]);
+
+                    // Emit event untuk refresh display dan petugas dashboard
+                    // Some environments may not have Livewire's ->emit available (causes fatal errors),
+                    // so use dispatchBrowserEvent as a safe fallback to notify client-side and other listeners.
+                    try {
+                        if (method_exists($this, 'emit')) {
+                            $this->emit('refreshDisplay');
+                            $this->emit('antrian-created', [
+                                'antrian_id' => $antrianModel->id,
+                                'loket_id' => $loket->id
+                            ]);
+                        } else {
+                            // Fallback: dispatch browser events that front-end JS can listen to
+                            $this->dispatchBrowserEvent('refreshDisplay');
+                            $this->dispatchBrowserEvent('antrian-created', [
+                                'antrian_id' => $antrianModel->id,
+                                'loket_id' => $loket->id
+                            ]);
+                        }
+                    } catch (\Throwable $e) {
+                        // Log but don't break the user flow
+                        Log::warning('Failed to emit Livewire events from PasienAntrian: ' . $e->getMessage());
+                        // Try to at least dispatch browser events
+                        try {
+                            $this->dispatchBrowserEvent('refreshDisplay');
+                            $this->dispatchBrowserEvent('antrian-created', [
+                                'antrian_id' => $antrianModel->id,
+                                'loket_id' => $loket->id
+                            ]);
+                        } catch (\Throwable $e) {
+                            Log::warning('Failed to dispatch browser events from PasienAntrian: ' . $e->getMessage());
+                        }
+                    }
 
                     // Simpan info antrian ke session untuk ditampilkan di display
                     session()->flash('nomor_antrian_baru', $nomorAntrian);
                     session()->flash('loket_nama_baru', $loket->nama_loket);
-                    session()->flash('antrian_id_baru', $savedAntrian->id);
-                    session()->flash('success', 'Nomor antrian ' . $nomorAntrian . ' berhasil diambil untuk ' . $loket->nama_loket . '. Silakan perhatikan layar display untuk panggilan Anda.');
+                    session()->flash('antrian_id_baru', $antrianModel->id);
+                    session()->flash('success', 'Nomor antrian ' . $nomorAntrian . ' berhasil diambil untuk ' . $loket->nama_loket);
                     
-                    // Dispatch event untuk JavaScript redirect
-                    // Delay 1 detik untuk memastikan semua proses selesai dan data tersimpan
-                    $this->dispatch('redirect-to-display');
+                    // Redirect ke halaman display (Livewire helper)
+                    $this->redirectRoute('display.index');
                 } catch (\Exception $e) {
                     // Rollback transaction jika ada error
                     DB::rollBack();

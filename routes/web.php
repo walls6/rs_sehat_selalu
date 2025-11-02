@@ -15,7 +15,9 @@ Route::get('/auth/google', [GoogleController::class, 'redirectToGoogle'])->name(
 Route::get('/auth/google/callback', [GoogleController::class, 'handleGoogleCallback'])->name('google.callback');
 
 // Route Public (tidak perlu auth)
-Route::get('/', \App\Livewire\PasienAntrian::class)->name('pasien.index');
+Route::get('/', function () {
+    return view('pasien-antrian-page');
+})->name('pasien.index');
 Route::get('/display', \App\Livewire\DisplayAntrian::class)->name('display.index');
 
 // Route yang memerlukan autentikasi

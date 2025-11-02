@@ -1,14 +1,14 @@
-<x-layouts.app>
+<div>
 @script
 <script>
     document.addEventListener('livewire:initialized', () => {
         // Listen untuk Livewire event 'redirect-to-display'
         Livewire.on('redirect-to-display', () => {
             // Redirect ke halaman display setelah data tersimpan ke database
-            // Delay 1.2 detik untuk memastikan commit transaction dan session flash selesai
+            // Delay 1.5 detik untuk memastikan commit transaction dan session flash selesai
             setTimeout(() => {
                 window.location.href = '{{ route("display.index") }}';
-            }, 1200);
+            }, 1500);
         });
     });
 </script>
@@ -142,8 +142,8 @@
                         type="submit"
                         wire:loading.attr="disabled"
                         wire:target="ambilAntrian"
-                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-12 rounded-lg text-lg transition-colors shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                        @if(!$selected_loket_id) disabled @endif
+                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-12 rounded-lg text-lg transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-lg"
+                        @disabled(!$selected_loket_id)
                     >
                         <span wire:loading.remove wire:target="ambilAntrian">
                             Ambil Nomor Antrian
@@ -157,8 +157,90 @@
                         </span>
                     </button>
                 </div>
+                <!-- Button untuk ambil melalui API (progressive enhancement) -->
+                <button
+                    type="button"
+                    id="api-ambil-btn"
+                    onclick="apiAmbilAntrian()"
+                    class="ml-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-8 rounded-lg text-lg transition-all shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50"
+                    disabled
+                >
+                    Ambil via API
+                </button>
             </form>
         @endif
     </div>
 </div>
-</x-layouts.app>
+    <div id="api-result-container" class="fixed top-6 right-6 z-50" aria-live="polite"></div>
+
+    @script
+    <script>
+        // Progressive enhancement: helper to call API to create antrian
+        function getCsrfToken() {
+            const m = document.querySelector('meta[name="csrf-token"]');
+            return m ? m.getAttribute('content') : '';
+        }
+
+        function showApiResult(message, success = true) {
+            const container = document.getElementById('api-result-container');
+            const el = document.createElement('div');
+            el.className = (success ? 'bg-green-100 border-l-4 border-green-500 text-green-700' : 'bg-red-100 border-l-4 border-red-500 text-red-700') + ' p-4 rounded shadow mb-2';
+            el.innerText = message;
+            container.appendChild(el);
+            setTimeout(() => { el.remove(); }, 6000);
+        }
+
+        // Enable/disable API button based on selected loket
+        document.addEventListener('DOMContentLoaded', () => {
+            const loketSelect = document.getElementById('loket');
+            const apiBtn = document.getElementById('api-ambil-btn');
+            if (!loketSelect || !apiBtn) return;
+            loketSelect.addEventListener('change', () => {
+                apiBtn.disabled = !loketSelect.value;
+            });
+            // init state
+            apiBtn.disabled = !loketSelect.value;
+        });
+
+        async function apiAmbilAntrian() {
+            const loketSelect = document.getElementById('loket');
+            const loketId = loketSelect ? loketSelect.value : null;
+            if (!loketId) {
+                showApiResult('Silakan pilih loket terlebih dahulu.', false);
+                return;
+            }
+
+            try {
+                const token = getCsrfToken();
+                const res = await fetch(`/api/lokets/${loketId}/antrians`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': token
+                    },
+                    body: JSON.stringify({})
+                });
+
+                const data = await res.json();
+                if (res.status === 201) {
+                    const nomor = data.data.nomor_antrian || '';
+                    const loketNama = data.data.loket ? data.data.loket.nama_loket : '';
+                    showApiResult('Berhasil membuat antrian: ' + nomor + ' untuk ' + loketNama, true);
+
+                    // Emit Livewire events so other components refresh
+                    if (window.Livewire) {
+                        Livewire.emit('refreshDisplay');
+                        Livewire.emit('antrian-created', { antrian_id: data.data.id, loket_id: data.data.loket_id });
+                        Livewire.emit('refreshList');
+                    }
+                } else {
+                    showApiResult((data.message || 'Gagal membuat antrian') + (data.error ? (': ' + data.error) : ''), false);
+                }
+            } catch (err) {
+                showApiResult('Error saat memanggil API: ' + err.message, false);
+            }
+        }
+    </script>
+    @endscript
+</div>

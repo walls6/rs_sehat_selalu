@@ -1,5 +1,5 @@
 <x-layouts.app>
-<div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4" >
+<div wire:poll.6s="loadCalled" class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4" >
     <div class="max-w-7xl mx-auto">
         <div class="text-center mb-8 pt-8">
             <h1 class="text-4xl font-bold text-gray-800 mb-2">Display Antrian</h1>

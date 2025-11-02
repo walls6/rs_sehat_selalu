@@ -1,5 +1,5 @@
 <x-layouts.app>
-<div class="container mx-auto p-6 max-w-7xl" >
+<div wire:poll.6s="loadLists" class="container mx-auto p-6 max-w-7xl" >
     <div class="flex justify-between items-center mb-6">
         <div>
             <h1 class="text-3xl font-bold text-gray-800">Dashboard Petugas Loket</h1>
@@ -31,43 +31,12 @@
     @endif
 
     <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-        <label for="loket" class="block text-sm font-medium text-gray-700 mb-3">
-            <span class="flex items-center gap-2">
-                <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                </svg>
-                Pilih Loket yang Anda Tugas <span class="text-red-500">*</span>
-            </span>
-        </label>
-        <select 
-            wire:model.live="loket_id" 
-            id="loket" 
-            class="block w-full px-4 py-3 border-2 border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg"
-        >
-            <option value="">-- Pilih Loket --</option>
-            @foreach($lokets as $loket)
-                <option value="{{ $loket->id }}">
-                    {{ $loket->nama_loket }}
-                    @if($loket->code) (Code: {{ $loket->code }}) @endif
-                    @if($loket->deskripsi) - {{ \Illuminate\Support\Str::limit($loket->deskripsi, 30) }} @endif
-                </option>
-            @endforeach
-        </select>
-        @if($loket_id)
-            @php
-                $selectedLoket = $lokets->firstWhere('id', $loket_id);
-            @endphp
-            @if($selectedLoket)
-                <div class="mt-3 p-3 bg-blue-50 rounded-lg">
-                    <p class="text-sm text-blue-800">
-                        <span class="font-semibold">Loket Aktif:</span> {{ $selectedLoket->nama_loket }}
-                    </p>
-                </div>
-            @endif
-        @endif
+        <div>
+            <h2 class="text-lg font-semibold text-gray-700">Menampilkan antrian untuk semua loket</h2>
+            <p class="text-sm text-gray-500">Anda dapat mengelola antrian dari halaman ini tanpa memilih loket.</p>
+        </div>
     </div>
 
-    @if($loket_id)
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- Antrian yang Dipanggil -->
             <div class="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 rounded-xl p-6 shadow-lg">
@@ -100,6 +69,7 @@
                         </div>
                         <button 
                             wire:click="finish({{ $called->id }})"
+                            onclick="apiFinish(event, {{ $called->id }})"
                             wire:loading.attr="disabled"
                             wire:target="finish({{ $called->id }})"
                             class="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-4 px-6 rounded-lg text-lg shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -170,6 +140,7 @@
                                     </div>
                                     <button 
                                         wire:click="callNow({{ $antrian->id }})"
+                                        onclick="apiCallNow(event, {{ $antrian->id }})"
                                         wire:loading.attr="disabled"
                                         wire:target="callNow({{ $antrian->id }})"
                                         class="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-3 px-6 rounded-lg text-sm shadow-lg transition-all transform hover:scale-110 ml-4 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -205,15 +176,89 @@
                 @endif
             </div>
         </div>
-    @else
-        <div class="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-12 text-center border-2 border-dashed border-gray-300 shadow-lg">
-            <svg class="w-20 h-20 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01M7 8h.01"></path>
-            </svg>
-            <div class="text-gray-600 text-xl font-semibold mb-2">Silakan Pilih Loket</div>
-            <div class="text-gray-400">Pilih loket di atas untuk melihat dan mengelola antrian</div>
-        </div>
-    @endif
 </div>
 </x-layouts.app>
+
+
+<div id="petugas-api-result" class="fixed top-6 left-6 z-50" aria-live="polite"></div>
+
+@script
+<script>
+    function petugasCsrf() {
+        const m = document.querySelector('meta[name="csrf-token"]');
+        return m ? m.getAttribute('content') : '';
+    }
+
+    function petugasShow(msg, ok = true) {
+        const container = document.getElementById('petugas-api-result');
+        const el = document.createElement('div');
+        el.className = (ok ? 'bg-green-100 border-l-4 border-green-500 text-green-700' : 'bg-red-100 border-l-4 border-red-500 text-red-700') + ' p-3 rounded shadow mb-2';
+        el.innerText = msg;
+        container.appendChild(el);
+        setTimeout(() => el.remove(), 5000);
+    }
+
+    async function apiCallNow(e, id) {
+        const btn = e && (e.currentTarget || e.target) ? (e.currentTarget || e.target) : null;
+        if (btn) btn.disabled = true;
+        try {
+            const token = petugasCsrf();
+            const res = await fetch(`/api/antrians/${id}/status`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': token
+                },
+                body: JSON.stringify({ status: 'dipanggil' })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                petugasShow('Antrian dipanggil: ' + (data.data.nomor_antrian || ''), true);
+                if (window.Livewire) {
+                    Livewire.emit('refreshList');
+                    Livewire.emit('refreshDisplay');
+                }
+            } else {
+                petugasShow((data.message || 'Gagal memanggil antrian') + (data.error ? ': ' + data.error : ''), false);
+            }
+        } catch (e) {
+            petugasShow('Error: ' + e.message, false);
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    async function apiFinish(e, id) {
+        const btn = e && (e.currentTarget || e.target) ? (e.currentTarget || e.target) : null;
+        if (btn) btn.disabled = true;
+        try {
+            const token = petugasCsrf();
+            const res = await fetch(`/api/antrians/${id}/status`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': token
+                },
+                body: JSON.stringify({ status: 'selesai' })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                petugasShow('Antrian selesai: ' + (data.data.nomor_antrian || ''), true);
+                if (window.Livewire) {
+                    Livewire.emit('refreshList');
+                    Livewire.emit('refreshDisplay');
+                }
+            } else {
+                petugasShow((data.message || 'Gagal menyelesaikan antrian') + (data.error ? ': ' + data.error : ''), false);
+            }
+        } catch (e) {
+            petugasShow('Error: ' + e.message, false);
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+</script>
+@endscript
 

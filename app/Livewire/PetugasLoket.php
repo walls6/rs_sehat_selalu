@@ -5,6 +5,7 @@ namespace App\Livewire;
 use Livewire\Component;
 use App\Models\Loket;
 use App\Models\Antrian;
+use App\Services\AntrianService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +19,9 @@ class PetugasLoket extends Component
 
     protected $listeners = [
         'refreshList' => '$refresh',
-        'antrian-created' => 'handleAntrianCreated'
+        'antrian-created' => 'handleAntrianCreated',
+        // when display requests refresh, reload lists
+        'refreshDisplay' => 'loadLists'
     ];
 
     /**
@@ -35,6 +38,8 @@ class PetugasLoket extends Component
         try {
             // Load semua loket yang tersedia untuk dipilih petugas
             $this->lokets = Loket::orderBy('nama_loket')->get();
+            // Load initial lists for petugas dashboard
+            $this->loadLists();
         } catch (\Exception $e) {
             $this->lokets = collect([]);
             Log::error('Error loading lokets: ' . $e->getMessage());
@@ -45,13 +50,11 @@ class PetugasLoket extends Component
     /**
      * Handle event ketika antrian baru dibuat
      */
-    public function handleAntrianCreated($data)
+    public function handleAntrianCreated($data = null)
     {
-        // Jika loket yang dipilih sesuai dengan antrian baru, refresh list
-        if (isset($data['loket_id']) && $this->loket_id == $data['loket_id']) {
-            $this->loadLists();
-            session()->flash('info', 'Antrian baru tersedia!');
-        }
+        // Refresh lists whenever a new antrian is created (show all lokets)
+        $this->loadLists();
+        session()->flash('info', 'Antrian baru tersedia!');
     }
 
     public function updatedLoketId()
@@ -65,28 +68,26 @@ class PetugasLoket extends Component
      */
     public function loadLists()
     {
-        if (!$this->loket_id) {
-            $this->waiting = [];
-            $this->called = null;
-            return;
-        }
-        
         try {
-            // Ambil antrian yang berstatus 'menunggu' untuk loket ini
-            // Diurutkan dari yang paling awal (created_at ASC = yang pertama datang)
-            $this->waiting = Antrian::where('loket_id', $this->loket_id)
-                ->where('status', 'menunggu')
+            // Load waiting antrians across all lokets (today only)
+            $today = Carbon::today();
+            $this->waiting = Antrian::where('status', 'menunggu')
+                ->whereDate('created_at', $today)
                 ->with('loket')
-                ->orderBy('created_at', 'asc') // Urut dari yang paling awal
+                ->orderBy('created_at', 'asc')
                 ->get();
-            
-            // Ambil antrian yang sedang 'dipanggil' untuk loket ini
-            // Ambil yang paling terakhir dipanggil (waktu_panggil DESC)
-            $this->called = Antrian::where('loket_id', $this->loket_id)
-                ->where('status', 'dipanggil')
+
+            // Load the most recently called antrian across all lokets (today only)
+            $calledCollection = Antrian::where('status', 'dipanggil')
+                ->whereDate('created_at', $today)
                 ->with('loket')
                 ->orderByDesc('waktu_panggil')
-                ->first(); // Hanya ambil 1 yang terakhir dipanggil
+                ->get();
+
+            $this->called = $calledCollection->first() ?: null;
+
+            // Debug/log counts to help verify data is loaded
+            Log::debug('Petugas loadLists counts', ['waiting' => $this->waiting->count(), 'called' => $calledCollection->count()]);
         } catch (\Exception $e) {
             Log::error('Error loading antrian lists: ' . $e->getMessage());
             $this->waiting = collect([]);
@@ -101,61 +102,40 @@ class PetugasLoket extends Component
     public function callNow($antrianId)
     {
         try {
+            $service = new AntrianService();
             $an = Antrian::findOrFail($antrianId);
-            
-            // Validasi: Pastikan antrian masih dalam status 'menunggu'
+
+            // Validations
             if ($an->status !== 'menunggu') {
                 session()->flash('error', 'Antrian ini sudah tidak dalam status menunggu.');
                 $this->loadLists();
                 return;
             }
-            
-            // Validasi: Pastikan antrian ini milik loket yang dipilih
-            if ($an->loket_id != $this->loket_id) {
-                session()->flash('error', 'Antrian ini bukan milik loket yang dipilih.');
-                $this->loadLists();
-                return;
-            }
-            
-            // Update status menggunakan DB transaction
-            DB::beginTransaction();
+
+            // Use service to update status (service sets waktu_panggil)
+            $updated = $service->updateStatus($an, 'dipanggil');
+
+            Log::info('Antrian dipanggil', [
+                'antrian_id' => $updated->id,
+                'nomor_antrian' => $updated->nomor_antrian,
+                'loket_id' => $updated->loket_id,
+                'waktu_panggil' => $updated->waktu_panggil ? $updated->waktu_panggil->format('Y-m-d H:i:s') : null
+            ]);
+
+            $this->loadLists();
+
+            // Notify display
             try {
-                // Update status menjadi 'dipanggil'
-                $an->status = 'dipanggil';
-                // Isi kolom waktu_panggil dengan waktu sekarang
-                $an->waktu_panggil = Carbon::now();
-                $an->save();
-                
-                // Verifikasi update
-                $an->refresh();
-                if ($an->status !== 'dipanggil') {
-                    throw new \Exception('Gagal mengupdate status antrian ke dipanggil.');
+                if (method_exists($this, 'emit')) {
+                    $this->emit('refreshDisplay');
+                } else {
+                    $this->dispatchBrowserEvent('refreshDisplay');
                 }
-                
-                if (!$an->waktu_panggil) {
-                    throw new \Exception('Kolom waktu_panggil tidak terisi.');
-                }
-                
-                DB::commit();
-                
-                Log::info('Antrian dipanggil', [
-                    'antrian_id' => $an->id,
-                    'nomor_antrian' => $an->nomor_antrian,
-                    'loket_id' => $an->loket_id,
-                    'waktu_panggil' => $an->waktu_panggil->format('Y-m-d H:i:s')
-                ]);
-                
-                // Refresh lists agar antrian hilang dari 'menunggu' dan muncul di 'dipanggil'
-                $this->loadLists();
-                
-                // Dispatch event untuk refresh display layar plasma
-                $this->dispatch('refreshDisplay');
-                
-                session()->flash('success', 'Nomor antrian ' . ($an->loket->code ?? '') . $an->nomor_antrian . ' telah dipanggil!');
-            } catch (\Exception $e) {
-                DB::rollBack();
-                throw $e;
+            } catch (\Throwable $e) {
+                Log::warning('Failed to emit/dispatch refreshDisplay: ' . $e->getMessage());
             }
+
+            session()->flash('success', 'Nomor antrian ' . ($updated->loket->code ?? '') . $updated->nomor_antrian . ' telah dipanggil!');
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             Log::error('Antrian not found: ' . $antrianId);
             session()->flash('error', 'Antrian tidak ditemukan.');
@@ -177,55 +157,40 @@ class PetugasLoket extends Component
     public function finish($antrianId)
     {
         try {
+            $service = new AntrianService();
             $an = Antrian::findOrFail($antrianId);
-            
+
             // Validasi: Pastikan antrian sedang dalam status 'dipanggil'
             if ($an->status !== 'dipanggil') {
                 session()->flash('error', 'Antrian ini tidak sedang dipanggil.');
                 $this->loadLists();
                 return;
             }
-            
-            // Validasi: Pastikan antrian ini milik loket yang dipilih
-            if ($an->loket_id != $this->loket_id) {
-                session()->flash('error', 'Antrian ini bukan milik loket yang dipilih.');
-                $this->loadLists();
-                return;
-            }
-            
-            // Update status menggunakan DB transaction
-            DB::beginTransaction();
+
+            // no loket ownership check: petugas manages all queues
+
+            $updated = $service->updateStatus($an, 'selesai');
+
+            Log::info('Antrian selesai', [
+                'antrian_id' => $updated->id,
+                'nomor_antrian' => $updated->nomor_antrian,
+                'loket_id' => $updated->loket_id,
+                'waktu_selesai' => now()->format('Y-m-d H:i:s')
+            ]);
+
+            $this->loadLists();
+
             try {
-                // Update status menjadi 'selesai'
-                $an->status = 'selesai';
-                $an->save();
-                
-                // Verifikasi update
-                $an->refresh();
-                if ($an->status !== 'selesai') {
-                    throw new \Exception('Gagal mengupdate status antrian ke selesai.');
+                if (method_exists($this, 'emit')) {
+                    $this->emit('refreshDisplay');
+                } else {
+                    $this->dispatchBrowserEvent('refreshDisplay');
                 }
-                
-                DB::commit();
-                
-                Log::info('Antrian selesai', [
-                    'antrian_id' => $an->id,
-                    'nomor_antrian' => $an->nomor_antrian,
-                    'loket_id' => $an->loket_id,
-                    'waktu_selesai' => now()->format('Y-m-d H:i:s')
-                ]);
-                
-                // Refresh lists agar antrian hilang dari 'Sedang Dipanggil'
-                $this->loadLists();
-                
-                // Dispatch event untuk refresh display layar plasma
-                $this->dispatch('refreshDisplay');
-                
-                session()->flash('success', 'Antrian ' . ($an->loket->code ?? '') . $an->nomor_antrian . ' telah diselesaikan.');
-            } catch (\Exception $e) {
-                DB::rollBack();
-                throw $e;
+            } catch (\Throwable $e) {
+                Log::warning('Failed to emit/dispatch refreshDisplay: ' . $e->getMessage());
             }
+
+            session()->flash('success', 'Antrian ' . ($updated->loket->code ?? '') . $updated->nomor_antrian . ' telah diselesaikan.');
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             Log::error('Antrian not found: ' . $antrianId);
             session()->flash('error', 'Antrian tidak ditemukan.');

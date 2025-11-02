@@ -6,6 +6,7 @@ use App\Models\Antrian;
 use App\Models\Loket;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\Services\AntrianService;
 use Carbon\Carbon;
 
 class AntrianController extends Controller
@@ -44,37 +45,11 @@ class AntrianController extends Controller
     public function generate(Request $request, Loket $loket)
     {
         try {
-            // Generate nomor antrian otomatis berdasarkan loket
-            $today = Carbon::today();
-            
-            // Cek jumlah antrian hari ini untuk loket ini
-            $countToday = Antrian::where('loket_id', $loket->id)
-                ->whereDate('created_at', $today)
-                ->count();
-
-            // Format nomor: code + nomor urut (001, 002, dst)
-            $nomorUrut = str_pad($countToday + 1, 3, '0', STR_PAD_LEFT);
-            $nomorAntrian = ($loket->code ?? '') . $nomorUrut;
-
-            // Pastikan nomor unik (jika ada duplikasi, tambahkan increment)
-            $counter = 1;
-            while (Antrian::where('loket_id', $loket->id)
-                ->where('nomor_antrian', $nomorAntrian)
-                ->whereDate('created_at', $today)
-                ->exists()) {
-                $nomorUrut = str_pad($countToday + $counter + 1, 3, '0', STR_PAD_LEFT);
-                $nomorAntrian = ($loket->code ?? '') . $nomorUrut;
-                $counter++;
-            }
-
-            $antrian = Antrian::create([
-                'loket_id' => $loket->id,
-                'nomor_antrian' => $nomorAntrian,
-                'status' => 'menunggu',
-            ]);
+            $service = new AntrianService();
+            $antrian = $service->createForLoket($loket);
 
             return redirect()->back()
-                ->with('success', 'Nomor antrian ' . $nomorAntrian . ' berhasil dibuat untuk loket ' . $loket->nama_loket);
+                ->with('success', 'Nomor antrian ' . $antrian->nomor_antrian . ' berhasil dibuat untuk loket ' . $loket->nama_loket);
         } catch (\Exception $e) {
             Log::error('Error generating antrian: ' . $e->getMessage());
             return redirect()->back()
@@ -91,16 +66,8 @@ class AntrianController extends Controller
             $validated = $request->validate([
                 'status' => 'required|in:menunggu,dipanggil,selesai',
             ]);
-
-            $antrian->status = $validated['status'];
-
-            if ($validated['status'] === 'dipanggil') {
-                $antrian->waktu_panggil = Carbon::now();
-            } elseif ($validated['status'] === 'selesai') {
-                // Opsional: bisa tambahkan waktu_selesai jika diperlukan
-            }
-
-            $antrian->save();
+            $service = new AntrianService();
+            $service->updateStatus($antrian, $validated['status']);
 
             return redirect()->back()
                 ->with('success', 'Status antrian berhasil diperbarui menjadi: ' . $validated['status']);
