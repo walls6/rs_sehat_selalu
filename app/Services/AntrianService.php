@@ -44,6 +44,18 @@ class AntrianService
                 }
             }
 
+            // If caller provided a nomor_antrian, ensure it's unique for this loket today
+            if ($providedNomor) {
+                $exists = Antrian::where('loket_id', $loket->id)
+                    ->where('nomor_antrian', $providedNomor)
+                    ->whereDate('created_at', $today)
+                    ->exists();
+
+                if ($exists) {
+                    throw new \Exception('Nomor antrian sudah digunakan untuk loket ini hari ini.');
+                }
+            }
+
             $antrian = Antrian::create([
                 'loket_id' => $loket->id,
                 'nomor_antrian' => $nomorAntrian,

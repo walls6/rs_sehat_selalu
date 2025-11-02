@@ -1,5 +1,5 @@
 <x-layouts.app>
-<div wire:poll.6s="loadLists" class="container mx-auto p-6 max-w-7xl" >
+<div class="container mx-auto p-6 max-w-7xl" >
     <div class="flex justify-between items-center mb-6">
         <div>
             <h1 class="text-3xl font-bold text-gray-800">Dashboard Petugas Loket</h1>
@@ -39,7 +39,7 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- Antrian yang Dipanggil -->
-            <div class="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 rounded-xl p-6 shadow-lg">
+            <div wire:poll.visible.6s="loadLists" class="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 rounded-xl p-6 shadow-lg">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="text-2xl font-bold text-blue-800 flex items-center gap-2">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -51,8 +51,8 @@
                         <span class="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full animate-pulse">LIVE</span>
                     @endif
                 </div>
-                @if($called && $called->loket)
-                    <div class="bg-white rounded-xl p-8 shadow-xl border-2 border-blue-400">
+                    @if($called && $called->loket)
+                    <div wire:key="called-{{ $called->id }}" class="bg-white rounded-xl p-8 shadow-xl border-2 border-blue-400">
                         <div class="text-center mb-6">
                             <div class="text-6xl font-black text-blue-600 mb-4 tracking-wider">
                                 {{ $called->loket->code ?? '' }}{{ $called->nomor_antrian }}
@@ -103,7 +103,7 @@
             </div>
 
             <!-- Daftar Antrian Menunggu -->
-            <div class="bg-gradient-to-br from-yellow-50 to-yellow-100 border-2 border-yellow-300 rounded-xl p-6 shadow-lg">
+                <div wire:poll.visible.6s="loadLists" class="bg-gradient-to-br from-yellow-50 to-yellow-100 border-2 border-yellow-300 rounded-xl p-6 shadow-lg">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="text-2xl font-bold text-yellow-800 flex items-center gap-2">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -117,10 +117,10 @@
                         </span>
                     @endif
                 </div>
-                @if(count($waiting) > 0)
+                    @if(count($waiting) > 0)
                     <div class="space-y-3 max-h-96 overflow-y-auto pr-2">
                         @foreach($waiting as $index => $antrian)
-                            <div class="bg-white rounded-lg p-4 shadow-md hover:shadow-xl transition-all border-2 border-yellow-200 hover:border-yellow-400 transform hover:scale-105">
+                            <div wire:key="waiting-{{ $antrian->id }}" class="bg-white rounded-lg p-4 shadow-md hover:shadow-xl transition-all border-2 border-yellow-200 hover:border-yellow-400 transform hover:scale-105">
                                 <div class="flex justify-between items-center">
                                     <div class="flex-1">
                                         <div class="flex items-center gap-3">
@@ -140,7 +140,6 @@
                                     </div>
                                     <button 
                                         wire:click="callNow({{ $antrian->id }})"
-                                        onclick="apiCallNow(event, {{ $antrian->id }})"
                                         wire:loading.attr="disabled"
                                         wire:target="callNow({{ $antrian->id }})"
                                         class="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-3 px-6 rounded-lg text-sm shadow-lg transition-all transform hover:scale-110 ml-4 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -160,13 +159,12 @@
                                                 Memproses...
                                             </span>
                                         </span>
-                                    </button>
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                @else
-                    <div class="bg-white rounded-xl p-12 text-center border-2 border-dashed border-yellow-300">
+                                    <button 
+                                        wire:click="finish({{ $called->id }})"
+                                        wire:loading.attr="disabled"
+                                        wire:target="finish({{ $called->id }})"
+                                        class="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-4 px-6 rounded-lg text-lg shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
                         <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
                         </svg>
@@ -215,9 +213,15 @@
             const data = await res.json();
             if (res.ok) {
                 petugasShow('Antrian dipanggil: ' + (data.data.nomor_antrian || ''), true);
+                // Emit an optimistic event so the called panel updates immediately
                 if (window.Livewire) {
+                    Livewire.emit('antrian-dipanggil', data.data);
                     Livewire.emit('refreshList');
                     Livewire.emit('refreshDisplay');
+                } else {
+                    // also dispatch as browser event for the layout bridge fallback
+                    window.dispatchEvent(new CustomEvent('antrian-dipanggil', { detail: data.data }));
+                    window.dispatchEvent(new CustomEvent('refreshDisplay'));
                 }
             } else {
                 petugasShow((data.message || 'Gagal memanggil antrian') + (data.error ? ': ' + data.error : ''), false);

@@ -23,7 +23,7 @@
         // to Livewire.emit so other Livewire components listening for emits still get notified.
         (function() {
             // List of events we want to bridge. Add more names here if needed.
-            const bridgedEvents = ['antrian-created', 'refreshDisplay', 'refreshList'];
+            const bridgedEvents = ['antrian-created', 'refreshDisplay', 'refreshList', 'antrian-dipanggil'];
 
             function forward(eventName) {
                 window.addEventListener(eventName, function(e) {
@@ -43,6 +43,41 @@
             for (const ev of bridgedEvents) {
                 forward(ev);
             }
+
+            // Play a short beep when a new antrian is created to alert petugas/display
+            function beep(duration = 120, frequency = 880, volume = 0.05, type = 'sine') {
+                try {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    const ctx = new AudioContext();
+                    const o = ctx.createOscillator();
+                    const g = ctx.createGain();
+                    o.type = type;
+                    o.frequency.value = frequency;
+                    g.gain.value = volume;
+                    o.connect(g);
+                    g.connect(ctx.destination);
+                    o.start(0);
+                    setTimeout(function() { o.stop(); ctx.close(); }, duration);
+                } catch (e) {
+                    // ignore audio errors silently
+                    console.warn('Beep failed', e);
+                }
+            }
+
+            window.addEventListener('antrian-created', function(e) {
+                // Small UX: play beep and flash console log
+                beep();
+                console.info('antrian-created', e && e.detail ? e.detail : null);
+            });
+            window.addEventListener('antrian-dipanggil', function(e) {
+                // Slightly different tone for "dipanggil"
+                try {
+                    beep(200, 660, 0.06, 'sawtooth');
+                    console.info('antrian-dipanggil', e && e.detail ? e.detail : null);
+                } catch (err) {
+                    console.warn('antrian-dipanggil beep failed', err);
+                }
+            });
         })();
     </script>
 </body>

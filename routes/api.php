@@ -47,3 +47,28 @@ Route::get('antrians', function (Request $request) {
         ], 500);
     }
 })->name('api.antrians.index');
+
+// Return waiting counts grouped by loket for today
+Route::get('lokets/waiting-counts', function (Request $request) {
+    try {
+        $today = \Carbon\Carbon::today();
+
+        $lokets = \App\Models\Loket::withCount(['antrians as waiting_count' => function ($q) use ($today) {
+            $q->where('status', 'menunggu')->whereDate('created_at', $today);
+        }])->get();
+
+        return response()->json([
+            'message' => 'Berhasil mengambil waiting counts per loket',
+            'data' => $lokets->map(function ($l) {
+                return [
+                    'loket_id' => $l->id,
+                    'nama_loket' => $l->nama_loket,
+                    'code' => $l->code,
+                    'waiting_count' => $l->waiting_count
+                ];
+            })
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['message' => 'Gagal mengambil waiting counts', 'error' => $e->getMessage()], 500);
+    }
+})->name('api.lokets.waiting_counts');

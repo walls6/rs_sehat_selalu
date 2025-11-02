@@ -21,7 +21,9 @@ class PetugasLoket extends Component
         'refreshList' => '$refresh',
         'antrian-created' => 'handleAntrianCreated',
         // when display requests refresh, reload lists
-        'refreshDisplay' => 'loadLists'
+        'refreshDisplay' => 'loadLists',
+        // Optimistic update when antrian is called from API/JS
+        'antrian-dipanggil' => 'handleAntrianDipanggil'
     ];
 
     /**
@@ -44,6 +46,38 @@ class PetugasLoket extends Component
             $this->lokets = collect([]);
             Log::error('Error loading lokets: ' . $e->getMessage());
             session()->flash('error', 'Gagal memuat daftar loket. Silakan refresh halaman.');
+        }
+    }
+
+    /**
+     * Handle optimistic UI update when antrian is called via API/JS.
+     * Payload can be an id or an array with ['id' => ...]
+     */
+    public function handleAntrianDipanggil($payload)
+    {
+        try {
+            $id = is_array($payload) ? ($payload['id'] ?? ($payload['0'] ?? null)) : $payload;
+            if (!$id) {
+                return;
+            }
+
+            $antrian = Antrian::with('loket')->find($id);
+            if (!$antrian) {
+                // fallback to reload lists if not found
+                $this->loadLists();
+                return;
+            }
+
+            // Set as the currently called antrian
+            $this->called = $antrian;
+
+            // Remove from waiting collection so it moves immediately
+            $this->waiting = collect($this->waiting)->filter(function ($a) use ($id) {
+                return (int) data_get($a, 'id', $a->id) !== (int) $id;
+            })->values();
+        } catch (\Exception $e) {
+            Log::warning('handleAntrianDipanggil error: ' . $e->getMessage());
+            $this->loadLists();
         }
     }
 
@@ -126,9 +160,12 @@ class PetugasLoket extends Component
 
             // Notify display
             try {
+                // Emit a specific event to let other listeners update optimistically
                 if (method_exists($this, 'emit')) {
+                    $this->emit('antrian-dipanggil', $updated->id);
                     $this->emit('refreshDisplay');
                 } else {
+                    $this->dispatchBrowserEvent('antrian-dipanggil', ['id' => $updated->id]);
                     $this->dispatchBrowserEvent('refreshDisplay');
                 }
             } catch (\Throwable $e) {
@@ -207,7 +244,6 @@ class PetugasLoket extends Component
 
     public function render()
     {
-        $this->loadLists();
         return view('livewire.petugas-loket');
     }
 }
