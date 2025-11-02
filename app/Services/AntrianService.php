@@ -76,6 +76,16 @@ class AntrianService
     public function updateStatus(Antrian $antrian, string $status)
     {
         try {
+            // Idempotency: if status already equals requested status, return as-is
+            if ($antrian->status === $status) {
+                // ensure waktu_panggil exists when requested status is 'dipanggil'
+                if ($status === 'dipanggil' && !$antrian->waktu_panggil) {
+                    $antrian->waktu_panggil = Carbon::now();
+                    $antrian->save();
+                }
+                return $antrian->refresh();
+            }
+
             $antrian->status = $status;
 
             if ($status === 'dipanggil') {
@@ -84,7 +94,7 @@ class AntrianService
 
             $antrian->save();
 
-            return $antrian;
+            return $antrian->refresh();
         } catch (\Exception $e) {
             Log::error('AntrianService updateStatus error: ' . $e->getMessage());
             throw $e;

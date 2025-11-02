@@ -172,6 +172,14 @@ class PetugasLoket extends Component
                 Log::warning('Failed to emit/dispatch refreshDisplay: ' . $e->getMessage());
             }
 
+            // Always dispatch browser events as well so non-Livewire listeners (layout bridge / JS) are notified.
+            try {
+                $this->dispatchBrowserEvent('antrian-dipanggil', ['id' => $updated->id, 'data' => $updated]);
+                $this->dispatchBrowserEvent('refreshDisplay');
+            } catch (\Throwable $e) {
+                Log::debug('dispatchBrowserEvent fallback failed: ' . $e->getMessage());
+            }
+
             session()->flash('success', 'Nomor antrian ' . ($updated->loket->code ?? '') . $updated->nomor_antrian . ' telah dipanggil!');
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             Log::error('Antrian not found: ' . $antrianId);
@@ -197,12 +205,14 @@ class PetugasLoket extends Component
             $service = new AntrianService();
             $an = Antrian::findOrFail($antrianId);
 
-            // Validasi: Pastikan antrian sedang dalam status 'dipanggil'
-            if ($an->status !== 'dipanggil') {
-                session()->flash('error', 'Antrian ini tidak sedang dipanggil.');
+            // If already finished, nothing to do
+            if ($an->status === 'selesai') {
+                session()->flash('info', 'Antrian ini sudah selesai.');
                 $this->loadLists();
                 return;
             }
+
+            // Allow finishing even if still 'menunggu' or 'dipanggil' (petugas can mark completed)
 
             // no loket ownership check: petugas manages all queues
 

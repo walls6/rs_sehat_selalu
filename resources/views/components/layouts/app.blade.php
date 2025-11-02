@@ -45,6 +45,7 @@
             }
 
             // Play a short beep when a new antrian is created to alert petugas/display
+            // Default is relatively soft; callers can pass stronger params for louder alerts.
             function beep(duration = 120, frequency = 880, volume = 0.05, type = 'sine') {
                 try {
                     const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -63,21 +64,45 @@
                     console.warn('Beep failed', e);
                 }
             }
-
-            window.addEventListener('antrian-created', function(e) {
-                // Small UX: play beep and flash console log
-                beep();
-                console.info('antrian-created', e && e.detail ? e.detail : null);
-            });
-            window.addEventListener('antrian-dipanggil', function(e) {
-                // Slightly different tone for "dipanggil"
+            // Visual highlight + audio when antrian is called or created
+            function handleAntrianCreated(detail) {
                 try {
-                    beep(200, 660, 0.06, 'sawtooth');
-                    console.info('antrian-dipanggil', e && e.detail ? e.detail : null);
+                    // softer ping for create
+                    beep(120, 880, 0.06, 'sine');
+                    console.info('antrian-created', detail || null);
                 } catch (err) {
-                    console.warn('antrian-dipanggil beep failed', err);
+                    console.warn('antrian-created beep failed', err);
                 }
-            });
+            }
+
+            function handleAntrianDipanggil(detail) {
+                try {
+                    // stronger, longer beep for call
+                    beep(350, 1000, 0.14, 'sine');
+                    console.info('antrian-dipanggil', detail || null);
+
+                    // Add a quick highlight to the called-panel element if present
+                    const el = document.getElementById('called-panel');
+                    if (el) {
+                        el.classList.add('ring-4', 'ring-blue-300');
+                        // remove highlight after a moment
+                        setTimeout(() => {
+                            el.classList.remove('ring-4', 'ring-blue-300');
+                        }, 900);
+                    }
+                } catch (err) {
+                    console.warn('antrian-dipanggil handler failed', err);
+                }
+            }
+
+            window.addEventListener('antrian-created', function(e) { handleAntrianCreated(e && e.detail ? e.detail : undefined); });
+            window.addEventListener('antrian-dipanggil', function(e) { handleAntrianDipanggil(e && e.detail ? e.detail : undefined); });
+
+            // Also listen for Livewire client-side events (emitted by server-to-client Livewire)
+            if (window.Livewire && typeof Livewire.on === 'function') {
+                Livewire.on('antrian-dipanggil', function(detail) { handleAntrianDipanggil(detail); });
+                Livewire.on('antrian-created', function(detail) { handleAntrianCreated(detail); });
+            }
         })();
     </script>
 </body>
