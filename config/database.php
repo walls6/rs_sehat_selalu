@@ -85,17 +85,24 @@ return [
 
         'pgsql' => [
             'driver' => 'pgsql',
-            'url' => env('DB_URL'),
-            'host' => env('DB_HOST', '127.0.0.1'),
-            'port' => env('DB_PORT', '5432'),
-            'database' => env('DB_DATABASE', 'laravel'),
-            'username' => env('DB_USERNAME', 'root'),
-            'password' => env('DB_PASSWORD', ''),
+            'url' => env('DB_URL', 'postgresql://postgres:zXXvSBhIETSWKlaVmifsBjPFcsIaZsEf@centerbeam.proxy.rlwy.net:52285/railway'),
+            'host' => env('DB_HOST', 'centerbeam.proxy.rlwy.net'),
+            'port' => env('DB_PORT', '52285'),
+            'database' => env('DB_DATABASE', 'railway'),
+            'username' => env('DB_USERNAME', 'postgres'),
+            'password' => env('DB_PASSWORD', 'zXXvSBhIETSWKlaVmifsBjPFcsIaZsEf'),
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => 'prefer',
+            'timeout' => env('DB_TIMEOUT', 60), // Increased timeout to 60 seconds
+            'options' => extension_loaded('pdo_pgsql') ? [
+                PDO::ATTR_PERSISTENT => false,
+                PDO::ATTR_TIMEOUT => 60, // Increased connection timeout to 60 seconds
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ] : [],
         ],
 
         'sqlsrv' => [

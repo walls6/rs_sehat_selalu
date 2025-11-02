@@ -7,25 +7,29 @@ use App\Models\Antrian;
 use App\Models\Loket;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
+use App\Services\AntrianService;
 
 class AntrianController extends Controller
 {
     /**
-     * Create antrian for a specific loket
+     * Create antrian for a specific loket (auto-generate nomor)
      */
     public function createForLoket(Request $request, Loket $loket)
     {
-        $data = $request->validate([
-            'nomor_antrian' => 'required|string',
-        ]);
+        try {
+            $service = new AntrianService();
+            $antrian = $service->createForLoket($loket, $request->input('nomor_antrian'));
 
-        $antrian = Antrian::create([
-            'loket_id' => $loket->id,
-            'nomor_antrian' => $data['nomor_antrian'],
-            'status' => 'menunggu',
-        ]);
-
-        return response()->json($antrian, 201);
+            return response()->json([
+                'message' => 'Antrian berhasil dibuat',
+                'data' => $antrian->load('loket')
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal membuat antrian',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -33,12 +37,20 @@ class AntrianController extends Controller
      */
     public function waitingForLoket(Loket $loket)
     {
-        $waiting = Antrian::where('loket_id', $loket->id)
-            ->where('status', 'menunggu')
-            ->orderBy('created_at')
-            ->get();
+        try {
+            $service = new AntrianService();
+            $waiting = $service->waitingForLoket($loket);
 
-        return response()->json($waiting);
+            return response()->json([
+                'message' => 'Berhasil mengambil antrian menunggu',
+                'data' => $waiting
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal mengambil antrian menunggu',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -46,32 +58,58 @@ class AntrianController extends Controller
      */
     public function updateStatus(Request $request, Antrian $antrian)
     {
-        $data = $request->validate([
-            'status' => 'required|in:menunggu,dipanggil,selesai',
-        ]);
+        try {
+            $data = $request->validate([
+                'status' => 'required|in:menunggu,dipanggil,selesai',
+            ]);
+            $service = new AntrianService();
+            $updated = $service->updateStatus($antrian, $data['status']);
 
-        $antrian->status = $data['status'];
-        
-        if ($data['status'] === 'dipanggil') {
-            $antrian->waktu_panggil = Carbon::now();
+            return response()->json([
+                'message' => 'Status antrian berhasil diperbarui',
+                'data' => $updated->load('loket')
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => 'Validation error',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal memperbarui status antrian',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        $antrian->save();
-
-        return response()->json($antrian);
     }
 
     /**
-     * Get currently called antrians
+     * Get currently called antrians (all lokets or specific loket)
      */
-    public function currentCalled()
+    public function currentCalled(Request $request)
     {
-        $called = Antrian::where('status', 'dipanggil')
-            ->with('loket')
-            ->orderBy('waktu_panggil', 'desc')
-            ->get();
+        try {
+            $query = Antrian::where('status', 'dipanggil')
+                ->with('loket')
+                ->orderBy('waktu_panggil', 'desc');
 
-        return response()->json($called);
+            // Filter by loket_id if provided
+            if ($request->has('loket_id')) {
+                $query->where('loket_id', $request->loket_id);
+            }
+
+            $called = $query->get();
+
+            return response()->json([
+                'message' => 'Berhasil mengambil antrian yang dipanggil',
+                'data' => $called,
+                'count' => $called->count()
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal mengambil antrian yang dipanggil',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }
 
