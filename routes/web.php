@@ -1,29 +1,58 @@
 <?php
 
+use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Facades\Route;
+use App\Models\User;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use App\Http\Controllers\Auth\GoogleController;
 use App\Http\Controllers\LoketController;
 use App\Http\Controllers\AntrianController;
 
-// Route untuk halaman login
+// Login route - redirect to Google OAuth
 Route::get('/login', function () {
-    return view('auth.login');
+    return redirect('/auth/google');
 })->name('login');
 
-// Route untuk Google OAuth
-Route::get('/auth/google', [GoogleController::class, 'redirectToGoogle'])->name('google.login');
-Route::get('/auth/google/callback', [GoogleController::class, 'handleGoogleCallback'])->name('google.callback');
+Route::get('auth/google', function () {
+    return Socialite::driver('google')->redirect();
+})->name('auth.google');
 
-// Route Public (tidak perlu auth)
+Route::get('auth/google/callback', function () {
+    try {
+        $googleUser = Socialite::driver('google')->user();
+
+        // cari atau buat user
+        $user = User::firstOrCreate(
+            ['email' => $googleUser->getEmail()],
+            [
+                'name' => $googleUser->getName(),
+                'password' => bcrypt(Str::random(16))
+            ]
+        );
+
+        Auth::login($user);
+
+        return redirect('/petugas'); // halaman petugas
+    } catch (\Exception $e) {
+        return redirect('/')->with('error', 'Gagal login: ' . $e->getMessage());
+    }
+})->name('auth.google.callback');
+
 Route::get('/', function () {
-    return view('pasien-antrian-page');
-})->name('pasien.index');
-Route::get('/display', \App\Livewire\DisplayAntrian::class)->name('display.index');
+    if (auth()->check()) {
+        return redirect('/petugas');
+    }
+    return view('welcome');
+})->name('home');
+
+// Route Public untuk Pasien
+Route::get('/pasien', \App\Http\Livewire\PasienLoket::class)->name('pasien');
 
 // Route yang memerlukan autentikasi
 Route::middleware('auth')->group(function () {
     // Dashboard Petugas Loket
-    Route::get('/petugas', \App\Livewire\PetugasLoket::class)->name('petugas.dashboard');
+    Route::get('/petugas', \App\Http\Livewire\PetugasLoket::class)->name('petugas');
     
     // Manajemen Loket (CRUD)
     Route::resource('lokets', LoketController::class);
@@ -38,7 +67,7 @@ Route::middleware('auth')->group(function () {
     
     // Route logout
     Route::post('/logout', function () {
-        auth()->logout();
-        return redirect('/login')->with('success', 'Anda telah logout.');
+        Auth::logout();
+        return redirect('/')->with('success', 'Anda telah logout.');
     })->name('logout');
 });
