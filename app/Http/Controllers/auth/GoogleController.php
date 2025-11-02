@@ -12,6 +12,22 @@ class GoogleController extends Controller
 {
     public function redirectToGoogle()
     {
+        // Basic config check to provide a clearer error when env vars are missing
+        $clientId = config('services.google.client_id');
+        $clientSecret = config('services.google.client_secret');
+        $redirect = config('services.google.redirect');
+
+        if (empty($clientId) || empty($clientSecret)) {
+            \Log::error('Google OAuth attempted but GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET not set.', [
+                'client_id' => $clientId ? 'present' : 'missing',
+                'client_secret' => $clientSecret ? 'present' : 'missing',
+                'redirect' => $redirect,
+            ]);
+
+            return redirect()->route('login')
+                ->with('error', 'Login dengan Google belum dikonfigurasi pada server (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET kosong). Hubungi admin.');
+        }
+
         return Socialite::driver('google')->redirect();
     }
 
