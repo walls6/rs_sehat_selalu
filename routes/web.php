@@ -1,11 +1,14 @@
 <?php
 
+use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Facades\Route;
+use App\Models\User;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use App\Http\Controllers\Auth\GoogleController;
 use App\Http\Controllers\LoketController;
 use App\Http\Controllers\AntrianController;
 
-<<<<<<< HEAD
 // Login route - redirect to Google OAuth
 Route::get('/login', function () {
     return redirect('/auth/google');
@@ -43,34 +46,13 @@ Route::get('/', function () {
     return view('welcome');
 })->name('home');
 
+// Route Public untuk Pasien
 Route::get('/pasien', \App\Http\Livewire\PasienLoket::class)->name('pasien');
-=======
-// Route untuk halaman login
-Route::get('/login', function () {
-    return view('auth.login');
-})->name('login');
-
-// Route untuk Google OAuth
-Route::get('/auth/google', [GoogleController::class, 'redirectToGoogle'])->name('google.login');
-Route::get('/auth/google/callback', [GoogleController::class, 'handleGoogleCallback'])->name('google.callback');
-
-// Route Public (tidak perlu auth)
-Route::get('/', function () {
-    return view('pasien-antrian-page');
-})->name('pasien.index');
-Route::get('/display', \App\Livewire\DisplayAntrian::class)->name('display.index');
->>>>>>> a35650fe089b9eeded013ae0f9469ed4217c8243
 
 // Route yang memerlukan autentikasi
 Route::middleware('auth')->group(function () {
-<<<<<<< HEAD
-    Route::get('/petugas', \App\Http\Livewire\PetugasLoket::class)->name('petugas');
-    Route::post('/logout', function () {
-        Auth::logout();
-        return redirect('/');
-=======
     // Dashboard Petugas Loket
-    Route::get('/petugas', \App\Livewire\PetugasLoket::class)->name('petugas.dashboard');
+    Route::get('/petugas', \App\Http\Livewire\PetugasLoket::class)->name('petugas');
     
     // Manajemen Loket (CRUD)
     Route::resource('lokets', LoketController::class);
@@ -85,8 +67,7 @@ Route::middleware('auth')->group(function () {
     
     // Route logout
     Route::post('/logout', function () {
-        auth()->logout();
-        return redirect('/login')->with('success', 'Anda telah logout.');
->>>>>>> a35650fe089b9eeded013ae0f9469ed4217c8243
+        Auth::logout();
+        return redirect('/')->with('success', 'Anda telah logout.');
     })->name('logout');
 });

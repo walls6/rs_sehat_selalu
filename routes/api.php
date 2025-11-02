@@ -3,10 +3,7 @@
 use App\Http\Controllers\API\LoketController;
 use App\Http\Controllers\API\AntrianController;
 use Illuminate\Support\Facades\Route;
-<<<<<<< HEAD
-=======
 use Illuminate\Http\Request;
->>>>>>> a35650fe089b9eeded013ae0f9469ed4217c8243
 
 /*
 |--------------------------------------------------------------------------
@@ -21,12 +18,6 @@ use Illuminate\Http\Request;
 Route::apiResource('lokets', LoketController::class);
 
 // Antrian endpoints
-<<<<<<< HEAD
-Route::post('lokets/{loket}/antrians', [AntrianController::class, 'createForLoket']);
-Route::get('lokets/{loket}/waiting', [AntrianController::class, 'waitingForLoket']);
-Route::patch('antrians/{antrian}/status', [AntrianController::class, 'updateStatus'])->name('api.antrians.status');
-Route::get('antrians/current', [AntrianController::class, 'currentCalled']);
-=======
 Route::post('lokets/{loket}/antrians', [AntrianController::class, 'createForLoket'])->name('api.antrians.create');
 Route::get('lokets/{loket}/waiting', [AntrianController::class, 'waitingForLoket'])->name('api.antrians.waiting');
 Route::patch('antrians/{antrian}/status', [AntrianController::class, 'updateStatus'])->name('api.antrians.updateStatus');
@@ -81,4 +72,3 @@ Route::get('lokets/waiting-counts', function (Request $request) {
         return response()->json(['message' => 'Gagal mengambil waiting counts', 'error' => $e->getMessage()], 500);
     }
 })->name('api.lokets.waiting_counts');
->>>>>>> a35650fe089b9eeded013ae0f9469ed4217c8243
