@@ -1,0 +1,20 @@
+﻿
+=== PANDUAN SETUP POSTGRESQL ===
+
+1. RESTART APACHE di XAMPP Control Panel
+   - Klik 'Stop' pada Apache
+   - Klik 'Start' pada Apache
+
+2. Pastikan PostgreSQL Service berjalan:
+   - Buka Services (Win + R, ketik 'services.msc')
+   - Cari 'postgresql' service
+   - Pastikan statusnya 'Running'
+
+3. Buat database jika belum ada:
+   psql -U postgres
+   CREATE DATABASE rs_sehat_selalu;
+
+4. Setelah restart Apache, jalankan:
+   php artisan migrate
+
+

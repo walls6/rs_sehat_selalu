@@ -13,9 +13,9 @@ return new class extends Migration
     {
         Schema::create('lokets', function (Blueprint $table) {
             $table->id();
-            $table->string('code', 5)->nullable(); // misal 'A', 'B', 'C' — prefix antrian
-            $table->string('nama_loket');
+            $table->string('nama_loket'); // e.g., "Pendaftaran Umum", "Poli Gigi"
             $table->text('deskripsi')->nullable();
+            $table->string('code', 10)->nullable()->unique(); // Prefix untuk nomor antrian (e.g., 'A', 'B', 'UMUM')
             $table->timestamps();
         });
     }
