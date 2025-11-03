@@ -128,6 +128,27 @@
                     @if($called && $called->loket)
                         <div id="called-panel" wire:key="called-{{ $called->id }}" class="relative bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-8 border-2 border-blue-300 animate-fade-in">
                             <div class="text-center">
+                                <!-- Small top-right Selesai button (compact) -->
+                                <button
+                                    wire:click="finish({{ $called->id }})"
+                                    onclick="if(!confirm('Yakin akan menyelesaikan antrian ini?')){ event.stopImmediatePropagation(); event.preventDefault(); return false; }"
+                                    wire:loading.attr="disabled"
+                                    wire:target="finish({{ $called->id }})"
+                                    title="Selesai"
+                                    class="absolute top-4 right-4 bg-green-500 hover:bg-green-600 text-white rounded-full p-2 shadow-lg focus:outline-none focus:ring-2 focus:ring-green-300 z-20"
+                                >
+                                    <span wire:loading.remove wire:target="finish({{ $called->id }})">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                        </svg>
+                                    </span>
+                                    <span wire:loading wire:target="finish({{ $called->id }})">
+                                        <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                        </svg>
+                                    </span>
+                                </button>
                                 <div class="mb-4">
                                     <span class="bg-blue-500 text-white px-3 py-1 rounded-lg text-sm font-semibold">
                                         {{ $called->loket->nama_loket ?? 'Loket' }}

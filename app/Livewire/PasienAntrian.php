@@ -201,14 +201,16 @@ class PasienAntrian extends Component
                         }
                     }
 
-                    // Simpan info antrian ke session untuk ditampilkan di display
+                    // Simpan info antrian ke session (keperluan legacy) dan set state untuk tampilan sukses
                     session()->flash('nomor_antrian_baru', $nomorAntrian);
                     session()->flash('loket_nama_baru', $loket->nama_loket);
                     session()->flash('antrian_id_baru', $antrianModel->id);
                     session()->flash('success', 'Nomor antrian ' . $nomorAntrian . ' berhasil diambil untuk ' . $loket->nama_loket);
-                    
-                    // Redirect ke halaman display (Livewire helper)
-                    $this->redirectRoute('display.index');
+
+                    // Jangan redirect ke route yang mungkin tidak ada (display.index).
+                    // Sebagai gantinya, tampilkan panel sukses di komponen pasien dengan state lokal.
+                    $this->antrian_terakhir = $antrianModel;
+                    $this->show_success = true;
                 } catch (\Exception $e) {
                     // Rollback transaction jika ada error
                     DB::rollBack();

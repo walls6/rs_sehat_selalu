@@ -49,6 +49,9 @@ Route::get('/', function () {
 // Route Public untuk Pasien
 Route::get('/pasien', \App\Http\Livewire\PasienLoket::class)->name('pasien');
 
+// Public display page for showing called queues per loket (mounted to Livewire)
+Route::get('/display', \App\Livewire\DisplayAntrian::class)->name('display.index');
+
 // Route yang memerlukan autentikasi
 Route::middleware('auth')->group(function () {
     // Dashboard Petugas Loket

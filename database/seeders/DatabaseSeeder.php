@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
         // Seed lokets
         $this->call([
             LoketSeeder::class,
+            AntrianSeeder::class,
         ]);
 
         // User::factory(10)->create();

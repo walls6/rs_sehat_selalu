@@ -3,16 +3,12 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-<<<<<<< HEAD
     <meta name="csrf-token" content="{{ csrf_token() }}">
-=======
->>>>>>> a35650fe089b9eeded013ae0f9469ed4217c8243
     <title>{{ config('app.name', 'Laravel') }}</title>
     
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.bunny.net">
-<<<<<<< HEAD
-    <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600,700" rel="stylesheet" />
+    <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
     
     <!-- Styles -->
     @php
@@ -21,15 +17,15 @@
     @endphp
     
     @if ($viteManifestExists || $viteHotExists)
-        @try
+        <?php try { ?>
             @vite(['resources/css/app.css', 'resources/js/app.js'])
-        @catch(\Exception $e)
+        <?php } catch (\Exception $e) { ?>
             <!-- Fallback jika Vite error -->
             <script src="https://cdn.tailwindcss.com"></script>
             <style>
                 [x-cloak] { display: none !important; }
             </style>
-        @endtry
+        <?php } ?>
     @else
         <!-- Fallback styles jika Vite belum di-build -->
         <script src="https://cdn.tailwindcss.com"></script>
@@ -41,18 +37,6 @@
     @livewireStyles
 </head>
 <body class="antialiased bg-gray-50">
-    {{ $slot }}
-    
-    @livewireScripts
-=======
-    <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
-    
-    <!-- Styles -->
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
-    
-    @livewireStyles
-</head>
-<body class="antialiased">
     {{ $slot }}
     
     @livewireScripts
@@ -113,6 +97,23 @@
                 }
             }
 
+            function speakText(text, lang = 'id-ID', rate = 0.95) {
+                try {
+                    if (!('speechSynthesis' in window)) return;
+                    const utter = new SpeechSynthesisUtterance(text);
+                    utter.lang = lang;
+                    utter.rate = rate;
+                    // Try to pick a local Indonesian voice if available (best-effort)
+                    const voices = window.speechSynthesis.getVoices() || [];
+                    const prefer = voices.find(v => /id|indonesia|bahasa/i.test(v.lang + ' ' + v.name));
+                    if (prefer) utter.voice = prefer;
+                    window.speechSynthesis.cancel(); // stop previous
+                    window.speechSynthesis.speak(utter);
+                } catch (e) {
+                    console.warn('TTS failed', e);
+                }
+            }
+
             function handleAntrianDipanggil(detail) {
                 try {
                     // stronger, longer beep for call
@@ -128,6 +129,45 @@
                             el.classList.remove('ring-4', 'ring-blue-300');
                         }, 900);
                     }
+
+                    // Try to build a spoken message. The detail may be:
+                    // - undefined/null -> nothing to speak
+                    // - a simple id (number/string)
+                    // - an object like {id: ..., data: {nomor_antrian: 'AA001', loket: {name: 'Pendaftaran'}}}
+                    let nomor = null;
+                    let loketName = null;
+                    if (!detail) {
+                        // nothing more
+                    } else if (typeof detail === 'string' || typeof detail === 'number') {
+                        nomor = String(detail);
+                    } else if (detail && typeof detail === 'object') {
+                        if (detail.data) {
+                            const d = detail.data;
+                            nomor = d.nomor_antrian || d.nomor || d.nomorAntrian || d.number || d.nomor_antrian_raw || null;
+                            if (!nomor && d.id) nomor = String(d.id);
+                            // loket name: try common fields
+                            if (d.loket) {
+                                loketName = d.loket.nama || d.loket.name || d.loket.title || null;
+                            } else {
+                                loketName = d.loket_name || d.loketNama || d.loketNama_lengkap || null;
+                            }
+                        } else {
+                            // maybe payload is {id: X}
+                            if (detail.id) nomor = String(detail.id);
+                        }
+                    }
+
+                    // Compose message in Indonesian. Keep it short and clear.
+                    if (nomor) {
+                        let msg = `Nomor antrian ${nomor} dipanggil`;
+                        if (loketName) msg += `, silakan menuju loket ${loketName}`;
+                        // Speak after small delay so beep and speech don't overlap too awkwardly
+                        setTimeout(() => speakText(msg, 'id-ID', 0.95), 180);
+                    } else {
+                        // fallback short phrase
+                        setTimeout(() => speakText('Antrian dipanggil', 'id-ID', 0.95), 160);
+                    }
+
                 } catch (err) {
                     console.warn('antrian-dipanggil handler failed', err);
                 }
@@ -143,7 +183,6 @@
             }
         })();
     </script>
->>>>>>> a35650fe089b9eeded013ae0f9469ed4217c8243
 </body>
 </html>
 

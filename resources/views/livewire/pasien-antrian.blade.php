@@ -1,15 +1,10 @@
 <div>
 @script
 <script>
+    // No automatic redirect to a separate display route.
+    // The component will show the local success panel after creating antrian.
     document.addEventListener('livewire:initialized', () => {
-        // Listen untuk Livewire event 'redirect-to-display'
-        Livewire.on('redirect-to-display', () => {
-            // Redirect ke halaman display setelah data tersimpan ke database
-            // Delay 1.5 detik untuk memastikan commit transaction dan session flash selesai
-            setTimeout(() => {
-                window.location.href = '{{ route("display.index") }}';
-            }, 1500);
-        });
+        // kept intentionally empty to avoid redirecting to a possibly missing route
     });
 </script>
 @endscript
