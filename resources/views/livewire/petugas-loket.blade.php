@@ -1,4 +1,4 @@
-<div class="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50 py-8 px-4 sm:px-6 lg:px-8">
+<div wire:poll.10s="refreshData" class="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50 py-8 px-4 sm:px-6 lg:px-8">
     <div class="max-w-7xl mx-auto">
         <!-- Header Section -->
         <div class="bg-white rounded-2xl shadow-lg p-6 mb-6 border border-gray-200">
@@ -79,7 +79,16 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-green-100 text-sm font-medium">Sedang Dipanggil</p>
-                        <p class="text-3xl font-bold mt-2">{{ $called ? 1 : 0 }}</p>
+                        <p class="text-3xl font-bold mt-2">
+                            @if($called && optional($called->loket))
+                                {{ $called->loket->code }}{{ $called->nomor_antrian }}
+                            @else
+                                -
+                            @endif
+                        </p>
+                        @if($called && optional($called->loket))
+                            <p class="text-green-100 text-xs font-semibold mt-1">{{ $called->loket->nama_loket }}</p>
+                        @endif
                     </div>
                     <div class="bg-white bg-opacity-20 rounded-lg p-3">
                         <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -103,164 +112,97 @@
             </div>
         </div>
 
-        <!-- Main Content Grid -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Antrian yang Dipanggil -->
-            <div class="bg-white rounded-2xl shadow-xl border-2 border-blue-200 overflow-hidden">
-                <div class="bg-gradient-to-r from-blue-500 to-indigo-600 p-6 text-white">
-                    <div class="flex items-center justify-between">
-                        <h2 class="text-2xl font-bold flex items-center gap-2">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
-                            </svg>
-                            Sedang Dipanggil
-                        </h2>
-                        @if($called)
-                            <span class="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full animate-pulse flex items-center gap-1">
-                                <span class="w-2 h-2 bg-white rounded-full"></span>
-                                LIVE
-                            </span>
-                        @endif
-                    </div>
-                </div>
-                
-                <div class="p-6">
-                    @if($called && $called->loket)
-                        <div id="called-panel" wire:key="called-{{ $called->id }}" class="relative bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-8 border-2 border-blue-300 animate-fade-in">
-                            <div class="text-center">
-                                <!-- Small top-right Selesai button (compact) -->
-                                <button
-                                    wire:click="finish({{ $called->id }})"
-                                    onclick="if(!confirm('Yakin akan menyelesaikan antrian ini?')){ event.stopImmediatePropagation(); event.preventDefault(); return false; }"
-                                    wire:loading.attr="disabled"
-                                    wire:target="finish({{ $called->id }})"
-                                    title="Selesai"
-                                    class="absolute top-4 right-4 bg-green-500 hover:bg-green-600 text-white rounded-full p-2 shadow-lg focus:outline-none focus:ring-2 focus:ring-green-300 z-20"
-                                >
-                                    <span wire:loading.remove wire:target="finish({{ $called->id }})">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                                        </svg>
-                                    </span>
-                                    <span wire:loading wire:target="finish({{ $called->id }})">
-                                        <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                                        </svg>
-                                    </span>
-                                </button>
-                                <div class="mb-4">
-                                    <span class="bg-blue-500 text-white px-3 py-1 rounded-lg text-sm font-semibold">
-                                        {{ $called->loket->nama_loket ?? 'Loket' }}
-                                    </span>
-                                </div>
-                                <div class="text-7xl md:text-8xl font-black text-blue-600 mb-4 tracking-wider drop-shadow-lg">
-                                    {{ $called->loket->code ?? '' }}{{ $called->nomor_antrian }}
-                                </div>
-                                <div class="flex items-center justify-center gap-2 text-gray-600 mb-6">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    <span class="font-semibold">Dipanggil: {{ $called->waktu_panggil ? $called->waktu_panggil->format('H:i:s') : '-' }}</span>
+        <!-- Daftar Antrian Menunggu - Premium Design -->
+        <div class="mb-8">
+            <div class="bg-white rounded-2xl shadow-xl border-2 border-yellow-200 overflow-hidden">
+                <div class="bg-gradient-to-r from-yellow-500 via-orange-500 to-amber-500 p-6 text-white relative overflow-hidden">
+                    <div class="absolute inset-0 opacity-10" style="background-image: linear-gradient(45deg, transparent 25%, rgba(255,255,255,.1) 25%, rgba(255,255,255,.1) 50%, transparent 50%, transparent 75%, rgba(255,255,255,.1) 75%, rgba(255,255,255,.1)); background-size: 30px 30px;"></div>
+                    <div class="relative z-10 flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="bg-white/20 backdrop-blur-sm rounded-xl p-4 shadow-lg">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h2 class="text-3xl font-bold mb-1">Antrian Menunggu</h2>
+                                <p class="text-yellow-100 text-sm">Daftar antrian yang sedang menunggu untuk dipanggil</p>
+                            </div>
+                        </div>
+                        @if(count($waiting) > 0)
+                            <div class="bg-white/20 backdrop-blur-sm rounded-xl px-5 py-3 shadow-lg">
+                                <div class="text-center">
+                                    <div class="text-3xl font-black">{{ count($waiting) }}</div>
+                                    <div class="text-xs font-semibold uppercase tracking-wider">Antrian</div>
                                 </div>
                             </div>
-                            <button
-                                wire:click="finish({{ $called->id }})"
-                                onclick="if(!confirm('Yakin akan menyelesaikan antrian ini?')){ event.stopImmediatePropagation(); event.preventDefault(); return false; }"
-                                wire:loading.attr="disabled"
-                                wire:target="finish({{ $called->id }})"
-                                class="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-4 px-6 rounded-xl text-lg shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                            >
-                                <span wire:loading.remove wire:target="finish({{ $called->id }})" class="flex items-center gap-2">
-                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                                    </svg>
-                                    Tandai Selesai
-                                </span>
-                                <span wire:loading wire:target="finish({{ $called->id }})" class="flex items-center gap-2">
-                                    <svg class="animate-spin h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                                    </svg>
-                                    Memproses...
-                                </span>
-                            </button>
-                        </div>
-                    @else
-                        <div class="bg-gray-50 rounded-xl p-12 text-center border-2 border-dashed border-gray-300">
-                            <svg class="w-20 h-20 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
-                            </svg>
-                            <div class="text-gray-500 text-xl font-semibold mb-2">Tidak ada antrian yang sedang dipanggil</div>
-                            <div class="text-gray-400">Panggil antrian dari daftar menunggu</div>
-                        </div>
-                    @endif
-                </div>
-            </div>
-
-            <!-- Daftar Antrian Menunggu -->
-            <div class="bg-white rounded-2xl shadow-xl border-2 border-yellow-200 overflow-hidden">
-                <div class="bg-gradient-to-r from-yellow-500 to-orange-500 p-6 text-white">
-                    <div class="flex items-center justify-between">
-                        <h2 class="text-2xl font-bold flex items-center gap-2">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
-                            </svg>
-                            Antrian Menunggu
-                        </h2>
-                        @if(count($waiting) > 0)
-                            <span class="bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-                                {{ count($waiting) }} Antrian
-                            </span>
                         @endif
                     </div>
                 </div>
                 
-                <div class="p-6">
+                <div class="p-6 bg-gradient-to-br from-gray-50 to-yellow-50">
                     @if(count($waiting) > 0)
-                        <div class="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[800px] overflow-y-auto pr-2 custom-scrollbar">
                             @foreach($waiting as $index => $antrian)
-                                <div wire:key="waiting-{{ $antrian->id }}" class="bg-gradient-to-r from-white to-gray-50 rounded-xl p-5 shadow-md hover:shadow-xl transition-all border-2 border-yellow-200 hover:border-yellow-400 transform hover:scale-[1.02]">
-                                    <div class="flex items-center justify-between gap-4">
-                                        <div class="flex items-center gap-4 flex-1">
-                                            <div class="bg-yellow-500 text-white w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg shadow-md">
-                                                {{ $index + 1 }}
-                                            </div>
-                                            <div class="flex-1">
-                                                <div class="text-3xl font-black text-gray-800 mb-1">
-                                                    {{ $antrian->loket->code ?? '' }}{{ $antrian->nomor_antrian ?? '-' }}
+                                <div wire:key="waiting-{{ $antrian->id }}" class="group relative bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 border-2 border-yellow-200 hover:border-yellow-400 transform hover:scale-[1.02] overflow-hidden">
+                                    <!-- Decorative gradient -->
+                                    <div class="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-yellow-200/30 to-orange-200/30 rounded-full blur-2xl"></div>
+                                    <div class="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-amber-200/30 to-yellow-200/30 rounded-full blur-xl"></div>
+                                    
+                                    <div class="relative z-10">
+                                        <div class="flex items-start justify-between mb-4">
+                                            <div class="flex items-center gap-3">
+                                                <div class="bg-gradient-to-br from-yellow-500 to-orange-500 text-white w-14 h-14 rounded-xl flex items-center justify-center font-black text-xl shadow-lg">
+                                                    {{ $index + 1 }}
                                                 </div>
-                                                <div class="flex items-center gap-2 text-sm text-gray-600">
-                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                                    </svg>
-                                                    <span>{{ $antrian->loket->nama_loket ?? 'Loket' }}</span>
-                                                    <span class="mx-2">•</span>
-                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                                    </svg>
-                                                    <span>Didaftar: {{ $antrian->created_at ? $antrian->created_at->format('H:i:s') : '-' }}</span>
+                                                <div>
+                                                    <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Nomor Antrian</div>
+                                                    <div class="text-3xl font-black text-gray-900 tracking-wider">
+                                                        {{ $antrian->loket->code ?? '' }}{{ $antrian->nomor_antrian ?? '-' }}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
+                                        
+                                        <div class="space-y-2 mb-4">
+                                            <div class="flex items-center gap-2 text-sm text-gray-600">
+                                                <div class="bg-blue-100 rounded-lg p-2">
+                                                    <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                                    </svg>
+                                                </div>
+                                                <span class="font-semibold text-gray-700">{{ $antrian->loket->nama_loket ?? 'Loket' }}</span>
+                                            </div>
+                                            <div class="flex items-center gap-2 text-sm text-gray-600">
+                                                <div class="bg-gray-100 rounded-lg p-2">
+                                                    <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                                    </svg>
+                                                </div>
+                                                <span>Didaftar: <span class="font-semibold">{{ $antrian->created_at ? $antrian->created_at->format('H:i:s') : '-' }}</span></span>
+                                            </div>
+                                        </div>
+                                        
                                         <button
                                             wire:click="callNow({{ $antrian->id }})"
                                             wire:loading.attr="disabled"
                                             wire:target="callNow({{ $antrian->id }})"
                                             title="Panggil {{ $antrian->loket->code ?? '' }}{{ $antrian->nomor_antrian }}"
-                                            class="flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center shadow-lg bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white transition-all transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            class="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                         >
-                                            <span wire:loading.remove wire:target="callNow({{ $antrian->id }})">
-                                                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <span wire:loading.remove wire:target="callNow({{ $antrian->id }})" class="flex items-center gap-2">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
                                                 </svg>
+                                                Panggil Sekarang
                                             </span>
-                                            <span wire:loading wire:target="callNow({{ $antrian->id }})">
-                                                <svg class="animate-spin h-7 w-7" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <span wire:loading wire:target="callNow({{ $antrian->id }})" class="flex items-center gap-2">
+                                                <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                                                 </svg>
+                                                Memproses...
                                             </span>
                                         </button>
                                     </div>
@@ -268,15 +210,136 @@
                             @endforeach
                         </div>
                     @else
-                        <div class="bg-gray-50 rounded-xl p-12 text-center border-2 border-dashed border-gray-300">
-                            <svg class="w-20 h-20 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
-                            </svg>
-                            <div class="text-gray-500 text-xl font-semibold mb-2">Tidak ada antrian menunggu</div>
-                            <div class="text-gray-400">Semua antrian telah dipanggil</div>
+                        <div class="bg-white rounded-xl p-16 text-center border-2 border-dashed border-yellow-300">
+                            <div class="inline-flex items-center justify-center w-24 h-24 bg-yellow-100 rounded-full mb-6">
+                                <svg class="w-12 h-12 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                                </svg>
+                            </div>
+                            <div class="text-gray-600 text-2xl font-bold mb-2">Tidak ada antrian menunggu</div>
+                            <div class="text-gray-400 text-lg">Semua antrian telah dipanggil</div>
                         </div>
                     @endif
                 </div>
+            </div>
+        </div>
+
+        <!-- Grid 5 Layanan Premium -->
+        <div class="mt-8">
+            <div class="text-center mb-6">
+                <h2 class="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
+                    Kelola Antrian per Layanan
+                </h2>
+                <div class="w-24 h-1 bg-gradient-to-r from-blue-600 to-indigo-600 mx-auto rounded-full"></div>
+                <p class="text-gray-600 mt-4">Kelola antrian untuk setiap layanan secara terpisah</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                @foreach($lokets as $loket)
+                    @php
+                        $cardCalled = $calledByLoket[$loket->id] ?? null;
+                        $cardWaiting = ($waitingByLoket[$loket->id] ?? collect());
+                        $firstWaiting = $cardWaiting->first();
+                    @endphp
+                    <div class="bg-white rounded-2xl shadow-xl border-2 border-blue-200 overflow-hidden hover:shadow-2xl transition-all">
+                        <div class="bg-gradient-to-r from-blue-500 to-indigo-600 p-5 text-white">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-xl font-bold flex items-center gap-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                                    </svg>
+                                    {{ $loket->nama_loket }}
+                                </h3>
+                                <span class="bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full {{ $cardCalled ? 'animate-pulse' : 'opacity-50' }}">LIVE</span>
+                            </div>
+                        </div>
+                        <div class="p-6">
+                            @if($cardCalled)
+                                <div class="text-center mb-5">
+                                    <div class="text-5xl md:text-6xl font-black text-blue-600 tracking-wider drop-shadow-lg mb-3">
+                                        {{ $loket->code }}{{ $cardCalled->nomor_antrian }}
+                                    </div>
+                                    <div class="flex items-center justify-center gap-2 text-gray-600 mb-4">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                        <span class="font-semibold text-sm">{{ optional($cardCalled->waktu_panggil)->format('H:i:s') ?? '-' }}</span>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <button
+                                        wire:click="skip({{ $cardCalled->id }})"
+                                        wire:loading.attr="disabled"
+                                        wire:target="skip({{ $cardCalled->id }})"
+                                        class="w-full bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-white font-semibold py-3 px-4 rounded-xl shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
+                                    >
+                                        <span wire:loading.remove wire:target="skip({{ $cardCalled->id }})" class="flex items-center gap-2">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                                            </svg>
+                                            Skip
+                                        </span>
+                                        <span wire:loading wire:target="skip({{ $cardCalled->id }})" class="flex items-center gap-2">
+                                            <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                            </svg>
+                                        </span>
+                                    </button>
+                                    <button
+                                        wire:click="finish({{ $cardCalled->id }})"
+                                        wire:loading.attr="disabled"
+                                        wire:target="finish({{ $cardCalled->id }})"
+                                        class="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-3 px-4 rounded-xl text-sm shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    >
+                                        <span wire:loading.remove wire:target="finish({{ $cardCalled->id }})" class="flex items-center gap-2">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                            </svg>
+                                            Selesai
+                                        </span>
+                                        <span wire:loading wire:target="finish({{ $cardCalled->id }})" class="flex items-center gap-2">
+                                            <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                            </svg>
+                                        </span>
+                                    </button>
+                                </div>
+                            @else
+                                <div class="text-center mb-5">
+                                    <div class="text-gray-500 text-sm mb-3">Belum ada yang dipanggil</div>
+                                    @if($firstWaiting)
+                                        <div class="text-2xl font-bold text-gray-700 mb-4">
+                                            {{ $loket->code }}{{ $firstWaiting->nomor_antrian }}
+                                        </div>
+                                        <button
+                                            wire:click="callNow({{ $firstWaiting->id }})"
+                                            wire:loading.attr="disabled"
+                                            wire:target="callNow({{ $firstWaiting->id }})"
+                                            class="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-3 px-4 rounded-xl text-sm shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                        >
+                                            <span wire:loading.remove wire:target="callNow({{ $firstWaiting->id }})" class="flex items-center gap-2">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
+                                                </svg>
+                                                Panggil
+                                            </span>
+                                            <span wire:loading wire:target="callNow({{ $firstWaiting->id }})" class="flex items-center gap-2">
+                                                <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                                </svg>
+                                            </span>
+                                        </button>
+                                    @else
+                                        <div class="text-sm text-gray-400">Tidak ada antrian menunggu</div>
+                                    @endif
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                @endforeach
             </div>
         </div>
     </div>

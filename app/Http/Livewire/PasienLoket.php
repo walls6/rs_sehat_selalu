@@ -24,22 +24,87 @@ class PasienLoket extends Component
         $this->lokets = Loket::all();
         $this->loadCurrentCalled();
         $this->loadWaitingCounts();
+        
+        // Load myAntrian from session if exists
+        $antrianId = session('my_antrian_id');
+        if ($antrianId) {
+            try {
+                $this->myAntrian = Antrian::with('loket')->find($antrianId);
+                // If antrian not found or already completed, clear session
+                // Tapi tetap tampilkan jika status 'dipanggil' atau 'menunggu'
+                if (!$this->myAntrian || $this->myAntrian->status === 'selesai') {
+                    session()->forget('my_antrian_id');
+                    $this->myAntrian = null;
+                }
+            } catch (\Exception $e) {
+                session()->forget('my_antrian_id');
+                $this->myAntrian = null;
+            }
+        }
     }
 
     public function loadWaitingCounts()
     {
+        // Optimize: Single query instead of N queries (N+1 problem fix)
+        if (empty($this->lokets)) {
+            $this->waitingCounts = [];
+            return;
+        }
+        
+        $loketIds = collect($this->lokets)->pluck('id')->toArray();
+        
+        // Single query to get all counts at once
+        $counts = Antrian::whereIn('loket_id', $loketIds)
+            ->where('status', 'menunggu')
+            ->selectRaw('loket_id, COUNT(*) as count')
+            ->groupBy('loket_id')
+            ->pluck('count', 'loket_id')
+            ->toArray();
+        
+        // Initialize all lokets with 0, then update with actual counts
         foreach ($this->lokets as $loket) {
-            $this->waitingCounts[$loket->id] = Antrian::where('loket_id', $loket->id)
-                ->where('status', 'menunggu')
-                ->count();
+            $this->waitingCounts[$loket->id] = $counts[$loket->id] ?? 0;
         }
     }
 
     public function loadCurrentCalled()
     {
-        $service = new AntrianService();
-        $this->currentCalled = $service->currentCalled();
-        $this->loadWaitingCounts();
+        try {
+            $service = new AntrianService();
+            $called = $service->currentCalled();
+            
+            // Remove duplicates and ensure unique by loket_id (only show one per loket - most recent)
+            $uniqueCalled = $called->groupBy('loket_id')
+                ->map(function ($group) {
+                    return $group->sortByDesc('waktu_panggil')->first();
+                })
+                ->values();
+            
+            // Convert to array format that Livewire can handle (only if changed to avoid unnecessary updates)
+            $newCalled = $uniqueCalled->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'loket_id' => $item->loket_id,
+                    'nomor_antrian' => $item->nomor_antrian,
+                    'waktu_panggil' => $item->waktu_panggil ? $item->waktu_panggil->toDateTimeString() : null,
+                    'loket' => [
+                        'id' => $item->loket->id ?? null,
+                        'nama_loket' => $item->loket->nama_loket ?? 'Loket',
+                        'code' => $item->loket->code ?? '',
+                    ]
+                ];
+            })->toArray();
+            
+            $this->currentCalled = $newCalled;
+            
+            // Only reload waiting counts if lokets are loaded
+            if (!empty($this->lokets)) {
+                $this->loadWaitingCounts();
+            }
+        } catch (\Exception $e) {
+            // Silently fail to avoid breaking the UI
+            \Log::error('Error in loadCurrentCalled: ' . $e->getMessage());
+        }
     }
 
     public function takeAntrian($loketId)
@@ -60,9 +125,11 @@ class PasienLoket extends Component
             $this->showSuccess = true;
             $this->successMessage = "Antrian berhasil diambil! Nomor antrian Anda: {$antrian->loket->code}{$antrian->nomor_antrian}";
             
-            // Refresh display
+            // Simpan ID antrian di session agar tidak hilang setelah refresh/cetak
+            session(['my_antrian_id' => $antrian->id]);
+            
+            // Refresh display (loadCurrentCalled already calls loadWaitingCounts)
             $this->loadCurrentCalled();
-            $this->loadWaitingCounts();
             $this->dispatch('refreshDisplay');
             
             session()->flash('success', $this->successMessage);
@@ -75,11 +142,37 @@ class PasienLoket extends Component
 
     public function render()
     {
-        // Reload data before rendering
+        // Only reload lokets if empty (avoid unnecessary queries)
         if (empty($this->lokets)) {
             $this->lokets = Loket::all();
+            $this->loadWaitingCounts();
         }
-        $this->loadWaitingCounts();
+        
+        // Reload myAntrian from session if it's null (after polling or refresh)
+        if (!$this->myAntrian) {
+            $antrianId = session('my_antrian_id');
+            if ($antrianId) {
+                try {
+                    $this->myAntrian = Antrian::with('loket')->find($antrianId);
+                    // If antrian not found or already completed, clear session
+                    if (!$this->myAntrian || in_array($this->myAntrian->status, ['selesai'])) {
+                        session()->forget('my_antrian_id');
+                        $this->myAntrian = null;
+                    }
+                } catch (\Exception $e) {
+                    session()->forget('my_antrian_id');
+                    $this->myAntrian = null;
+                }
+            }
+        }
+        
+        // Ensure currentCalled doesn't have duplicates by loket_id
+        if (!empty($this->currentCalled)) {
+            $this->currentCalled = collect($this->currentCalled)
+                ->unique('loket_id')
+                ->values()
+                ->all();
+        }
         
         return view('livewire.pasien-loket')
             ->layout('layouts.app');

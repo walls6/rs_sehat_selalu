@@ -98,5 +98,21 @@ class AntrianController extends Controller
                 ->with('error', 'Gagal menghapus antrian: ' . $e->getMessage());
         }
     }
+
+    /**
+     * Print/Cetak tiket antrian
+     */
+    public function printTicket($id)
+    {
+        try {
+            $antrian = Antrian::with('loket')->findOrFail($id);
+            
+            return view('antrians.print-ticket', compact('antrian'));
+        } catch (\Exception $e) {
+            Log::error('Error printing ticket: ' . $e->getMessage());
+            return redirect()->back()
+                ->with('error', 'Gagal mencetak tiket: ' . $e->getMessage());
+        }
+    }
 }
 
