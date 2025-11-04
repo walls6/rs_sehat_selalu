@@ -49,6 +49,9 @@ Route::get('/', function () {
 // Route Public untuk Pasien
 Route::get('/pasien', \App\Http\Livewire\PasienLoket::class)->name('pasien');
 
+// Route Public untuk Cetak Tiket Antrian
+Route::get('/antrian/{id}/print', [AntrianController::class, 'printTicket'])->name('antrian.print');
+
 // Public display page for showing called queues per loket (mounted to Livewire)
 Route::get('/display', \App\Livewire\DisplayAntrian::class)->name('display.index');
 
